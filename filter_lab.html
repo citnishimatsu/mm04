@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Filter Lab</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg:       #f2f0eb;
+  --bg2:      #e8e5de;
+  --bg3:      #dedad1;
+  --surface:  #ffffff;
+  --ink:      #1a1814;
+  --ink2:     #6b6760;
+  --ink3:     #a8a49e;
+  --accent:   #c84b2f;
+  --accent2:  #2f6bc8;
+  --accent3:  #2a9e6a;
+  --border:   rgba(26,24,20,0.10);
+  --border2:  rgba(26,24,20,0.06);
+  --mono:     'Space Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+  --radius:   6px;
+  --shadow:   0 2px 12px rgba(26,24,20,0.08), 0 1px 3px rgba(26,24,20,0.06);
+  --shadow2:  0 8px 32px rgba(26,24,20,0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ===== HEADER ===== */
+header {
+  background: var(--ink);
+  color: var(--bg);
+  padding: 0 32px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+header h1 {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.header-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.12);
+}
+
+.header-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.06em;
+}
+
+/* ===== LAYOUT ===== */
+.app {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: calc(100vh - 52px);
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-head {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Upload zone */
+.upload-zone {
+  border: 1.5px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 20px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg2);
+  position: relative;
+}
+
+.upload-zone:hover, .upload-zone.drag {
+  border-color: var(--accent);
+  background: rgba(200,75,47,0.04);
+}
+
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+
+.upload-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+  opacity: 0.5;
+}
+
+.upload-hint {
+  font-size: 11px;
+  color: var(--ink2);
+  line-height: 1.5;
+}
+
+.upload-hint strong { color: var(--accent); }
+
+/* Preview thumb */
+#thumbWrap {
+  display: none;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000;
+  aspect-ratio: 1;
+  max-height: 180px;
+}
+
+#thumbWrap img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+}
+
+/* Sample images */
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.sample-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  cursor: pointer;
+  overflow: hidden;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--ink2);
+  text-align: center;
+  padding: 4px;
+  transition: all 0.15s;
+  line-height: 1.3;
+}
+
+.sample-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(200,75,47,0.04); }
+.sample-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border);
+}
+
+/* Sliders */
+.sl-group { display: flex; flex-direction: column; gap: 6px; }
+
+.sl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sl-label {
+  font-size: 11px;
+  color: var(--ink2);
+  min-width: 52px;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  flex: 1;
+  height: 2px;
+  background: var(--bg3);
+  border-radius: 1px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+input[type=range]::-webkit-slider-thumb:hover { background: var(--accent); }
+
+.sl-val {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Kernel grid */
+.kernel-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 4px;
+}
+
+.kernel-grid input[type=number] {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+  padding: 5px 2px;
+  outline: none;
+  -moz-appearance: textfield;
+  transition: border-color 0.15s;
+}
+
+.kernel-grid input[type=number]::-webkit-inner-spin-button,
+.kernel-grid input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.kernel-grid input[type=number]:focus {
+  border-color: var(--accent2);
+  background: #fff;
+}
+
+/* Preset buttons */
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.preset-btn {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all 0.13s;
+  letter-spacing: 0.03em;
+}
+.preset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.preset-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+
+/* Run button */
+.run-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 4px;
+}
+.run-btn:hover { background: #a83a20; transform: translateY(-1px); box-shadow: var(--shadow); }
+.run-btn:active { transform: translateY(0); }
+
+/* ===== MAIN CONTENT ===== */
+.content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+/* Result panels */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s;
+}
+.result-card:hover { box-shadow: var(--shadow2); }
+
+.result-card.original { border-color: rgba(26,24,20,0.2); }
+.result-card.freq-type { border-top: 3px solid var(--accent2); }
+.result-card.spatial-type { border-top: 3px solid var(--accent3); }
+.result-card.custom-type { border-top: 3px solid var(--accent); }
+
+.card-header {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.card-type {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.card-type.freq { color: var(--accent2); }
+.card-type.spatial { color: var(--accent3); }
+.card-type.custom { color: var(--accent); }
+.card-type.orig { color: var(--ink3); }
+
+.card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.card-desc {
+  font-size: 10px;
+  color: var(--ink2);
+  margin-top: 2px;
+}
+
+.card-canvas {
+  flex: 1;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+.card-canvas canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.card-footer {
+  padding: 6px 10px;
+  border-top: 1px solid var(--border2);
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink3);
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Empty state */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--ink3);
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-icon { font-size: 48px; opacity: 0.3; }
+.empty-title { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.empty-desc { font-size: 12px; line-height: 1.6; max-width: 300px; }
+
+/* Info bar */
+.info-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink2);
+}
+
+.info-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-left: auto;
+}
+
+.legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; color: var(--ink2);
+}
+
+.legend-pip {
+  width: 10px; height: 3px; border-radius: 2px;
+}
+
+/* normalize toggle */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink2);
+  margin-top: 2px;
+}
+
+.toggle {
+  position: relative;
+  width: 32px; height: 18px;
+  flex-shrink: 0;
+}
+
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+.toggle-track {
+  position: absolute; inset: 0;
+  background: var(--bg3);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle input:checked + .toggle-track { background: var(--accent2); }
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  left: 2px; top: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle input:checked + .toggle-track::after { transform: translateX(14px); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Image Filter Lab</h1>
+  <div class="header-rule"></div>
+  <span class="header-tag">周波数フィルタ × 空間フィルタ 比較ツール</span>
+</header>
+
+<div class="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+
+    <!-- Image input -->
+    <div class="section">
+      <p class="section-head">入力画像</p>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="upload-icon">⬆</div>
+        <div class="upload-hint">クリックまたはドロップ<br><strong>任意の画像ファイル</strong>を読み込む</div>
+      </div>
+
+      <div id="thumbWrap"><img id="thumbImg" src="" alt="preview"></div>
+
+      <p style="font-size:10px;color:var(--ink3);font-family:var(--mono);letter-spacing:.04em;">— サンプル画像 —</p>
+
+      <div class="sample-grid">
+        <button class="sample-btn" onclick="loadSample('lena')">Lena<br>256×256</button>
+        <button class="sample-btn" onclick="loadSample('checker')">Checker<br>board</button>
+        <button class="sample-btn" onclick="loadSample('stripes')">Stripes<br>pattern</button>
+        <button class="sample-btn" onclick="loadSample('circles')">Concen-<br>tric</button>
+        <button class="sample-btn" onclick="loadSample('gradient')">Gradient<br>noise</button>
+        <button class="sample-btn" onclick="loadSample('text')">Text<br>sample</button>
+      </div>
+
+      <div id="thumbWrap" style="display:none;"><img id="thumbImg" alt=""></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Frequency filters -->
+    <div class="section">
+      <p class="section-head" style="color:var(--accent2);">周波数フィルタ</p>
+
+      <div class="sl-group">
+        <div class="sl-row">
+          <span class="sl-label">LPF 半径</span>
+          <input type="range" id="slLPF" min="1" max="120" value="30" step="1">
+          <span class="sl-val" id="vLPF">30</span>
+        </div>
+        <div class="sl-row">
+          <span class="sl-label">HPF 半径</span>
+          <input type="range" id="slHPF" min="1" max="120" value="20" step="1">
+          <span class="sl-val" id="vHPF">20</span>
+        </div>
+      </div>
+
+      <div style="font-size:10px;color:var(--ink3);line-height:1.6;">
+        DFT → 周波数領域でフィルタ → IDFT。LPF：半径以内の低周波のみ通過。HPF：半径以外の高周波のみ通過。
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Spatial filters -->
+    <div class="section">
+      <p class="section-head" style="color:var(--accent3);">空間フィルタ</p>
+
+      <div class="preset-row" id="presetRow">
+        <button class="preset-btn active" id="pr_smooth3" onclick="loadPreset('smooth3')">平滑化3×3</button>
+        <button class="preset-btn" id="pr_smooth5" onclick="loadPreset('smooth5')">平滑化5×5</button>
+        <button class="preset-btn" id="pr_gaussian" onclick="loadPreset('gaussian')">ガウシアン</button>
+        <button class="preset-btn" id="pr_sharpen" onclick="loadPreset('sharpen')">鮮鋭化</button>
+        <button class="preset-btn" id="pr_edge_sobel_x" onclick="loadPreset('edge_sobel_x')">Sobel X</button>
+        <button class="preset-btn" id="pr_edge_sobel_y" onclick="loadPreset('edge_sobel_y')">Sobel Y</button>
+        <button class="preset-btn" id="pr_edge_laplacian" onclick="loadPreset('edge_laplacian')">Laplacian</button>
+        <button class="preset-btn" id="pr_emboss" onclick="loadPreset('emboss')">エンボス</button>
+        <button class="preset-btn" id="pr_custom" onclick="loadPreset('custom')">カスタム</button>
+      </div>
+
+      <div>
+        <p style="font-size:10px;color:var(--ink3);margin-bottom:5px;">カーネル行列（3×3）— 直接編集可</p>
+        <div class="kernel-grid" id="kernelGrid">
+          <!-- 9 cells populated by JS -->
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:var(--ink3);">
+          <span>合計: <span id="kernelSum" style="font-family:var(--mono);color:var(--ink);">—</span></span>
+          <span id="kernelNormNote"></span>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <span>出力を自動正規化（クランプ）</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggleNorm" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="run-btn" onclick="runAll()">▶ フィルタ実行</button>
+
+    <div style="font-size:10px;color:var(--ink3);line-height:1.7;margin-top:2px;">
+      画像を選択してフィルタを実行すると、6枚の結果が右に並んで表示されます。パラメータを変えて再実行できます。
+    </div>
+
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="content" id="mainContent">
+
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🔬</div>
+      <p class="empty-title">Image Filter Lab</p>
+      <p class="empty-desc">画像を読み込んでフィルタを実行すると、<br>周波数フィルタと空間フィルタの結果を<br>並べて比較できます。</p>
+    </div>
+
+  </main>
+</div>
+
+<!-- Hidden canvases for processing -->
+<canvas id="srcCanvas" style="display:none;"></canvas>
+
+<script>
+// =============================================
+//  State
+// =============================================
+let srcImageData = null;   // original ImageData (full res)
+let srcW = 0, srcH = 0;
+let currentPreset = 'smooth3';
+
+// =============================================
+//  Kernel presets  (3×3 only for display; 5×5 handled separately)
+// =============================================
+const PRESETS = {
+  smooth3:       { name:'平滑化 3×3',  k: [1,1,1, 1,1,1, 1,1,1], div:9,  desc:'均一平均フィルタ（ボックスフィルタ）' },
+  smooth5:       { name:'平滑化 5×5',  k: [1,1,1, 1,1,1, 1,1,1], div:9,  desc:'5×5ボックスフィルタ（内部で拡張）', size5: true },
+  gaussian:      { name:'ガウシアン',   k: [1,2,1, 2,4,2, 1,2,1], div:16, desc:'ガウシアンぼかし σ≈0.85' },
+  sharpen:       { name:'鮮鋭化',      k: [0,-1,0, -1,5,-1, 0,-1,0], div:1, desc:'ラプラシアン鮮鋭化（中心強調）' },
+  edge_sobel_x:  { name:'Sobel X',    k: [-1,0,1, -2,0,2, -1,0,1], div:1, desc:'水平方向エッジ検出' },
+  edge_sobel_y:  { name:'Sobel Y',    k: [-1,-2,-1, 0,0,0, 1,2,1], div:1, desc:'垂直方向エッジ検出' },
+  edge_laplacian:{ name:'Laplacian',  k: [0,1,0, 1,-4,1, 0,1,0],  div:1, desc:'全方向エッジ検出（2次微分）' },
+  emboss:        { name:'エンボス',    k: [-2,-1,0, -1,1,1, 0,1,2], div:1, desc:'浮き彫り効果' },
+  custom:        { name:'カスタム',    k: [0,0,0, 0,1,0, 0,0,0],  div:1, desc:'カーネルを自由に編集' },
+};
+
+// =============================================
+//  Kernel UI
+// =============================================
+function buildKernelGrid() {
+  const grid = document.getElementById('kernelGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.step = 'any';
+    inp.value = '0';
+    inp.id = 'k' + i;
+    inp.addEventListener('input', () => {
+      currentPreset = 'custom';
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('pr_custom').classList.add('active');
+      updateKernelInfo();
+    });
+    grid.appendChild(inp);
+  }
+}
+
+function setKernel(values) {
+  for (let i = 0; i < 9; i++) {
+    document.getElementById('k'+i).value = values[i];
+  }
+  updateKernelInfo();
+}
+
+function getKernel() {
+  return Array.from({length:9}, (_,i) => parseFloat(document.getElementById('k'+i).value) || 0);
+}
+
+function updateKernelInfo() {
+  const k = getKernel();
+  const sum = k.reduce((a,b)=>a+b, 0);
+  document.getElementById('kernelSum').textContent = sum.toFixed(3);
+  const note = document.getElementById('kernelNormNote');
+  if (Math.abs(sum) < 0.001) note.textContent = '（エッジ / 差分系）';
+  else if (Math.abs(sum - 1) < 0.01) note.textContent = '（正規化済み）';
+  else note.textContent = `（要除算: ÷${sum.toFixed(1)}）`;
+}
+
+function loadPreset(name) {
+  currentPreset = name;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pr_'+name).classList.add('active');
+  const p = PRESETS[name];
+  setKernel(p.k);
+}
+
+// =============================================
+//  Sample image generators
+// =============================================
+function generateSample(type, W, H) {
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  switch(type) {
+    case 'checker': {
+      const sz = Math.floor(W / 8);
+      for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+        ctx.fillStyle = ((Math.floor(x/sz)+Math.floor(y/sz))%2) ? '#fff' : '#111';
+        ctx.fillRect(x,y,1,1);
+      }
+      break;
+    }
+    case 'stripes': {
+      for (let x=0; x<W; x++) {
+        const v = Math.sin(x * Math.PI / 12) > 0 ? 220 : 35;
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        ctx.fillRect(x,0,1,H);
+      }
+      // add some diagonal stripes
+      for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+        if (Math.sin((x+y)*Math.PI/20) > 0.7) {
+          ctx.fillStyle = 'rgba(180,180,180,0.4)';
+          ctx.fillRect(x,y,1,1);
+        }
+      }
+      break;
+    }
+    case 'circles': {
+      ctx.fillStyle = '#111'; ctx.fillRect(0,0,W,H);
+      for (let r=10; r<W/2; r+=20) {
+        ctx.beginPath(); ctx.arc(W/2,H/2,r,0,Math.PI*2);
+        ctx.strokeStyle = `rgba(220,220,220,${0.5+0.5*Math.sin(r*0.3)})`;
+        ctx.lineWidth = 2; ctx.stroke();
+      }
+      break;
+    }
+    case 'gradient': {
+      // gradient + noise
+      const id = ctx.createImageData(W,H);
+      for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+        const i=(y*W+x)*4;
+        const base = Math.round((x/W)*180 + (y/H)*50 + Math.random()*25);
+        id.data[i]=id.data[i+1]=id.data[i+2]=Math.min(255,base);
+        id.data[i+3]=255;
+      }
+      ctx.putImageData(id,0,0);
+      break;
+    }
+    case 'text': {
+      ctx.fillStyle = '#f0ede8'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#1a1814';
+      ctx.font = 'bold 28px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Image', W/2, H/2-30);
+      ctx.font = '20px serif';
+      ctx.fillText('Filter Lab', W/2, H/2+5);
+      ctx.font = '12px monospace';
+      ctx.fillText('周波数 × 空間フィルタ', W/2, H/2+35);
+      // draw some lines
+      ctx.strokeStyle='rgba(26,24,20,0.15)'; ctx.lineWidth=0.5;
+      for(let y=60;y<H;y+=20){ctx.beginPath();ctx.moveTo(20,y);ctx.lineTo(W-20,y);ctx.stroke();}
+      break;
+    }
+    case 'lena': {
+      // Synthetic "Lena-like" - portrait with smooth areas and edges
+      const id = ctx.createImageData(W,H);
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+        const i=(y*W+x)*4;
+        const nx=x/W*2-1, ny=y/H*2-1;
+        // base skin tone
+        let r=180+Math.sin(nx*3)*20+Math.cos(ny*4)*15;
+        let g=140+Math.sin(nx*2.5)*18+Math.cos(ny*3)*12;
+        let b=100+Math.sin(nx*2)*15+Math.cos(ny*2.5)*10;
+        // hat area
+        if(ny<-0.3) { r=80+Math.random()*10; g=60+Math.random()*8; b=50+Math.random()*8; }
+        // shoulder
+        if(ny>0.6&&Math.abs(nx)>0.3) { r=200; g=180; b=160; }
+        // noise for texture
+        r+=Math.random()*8-4; g+=Math.random()*8-4; b+=Math.random()*8-4;
+        id.data[i]=Math.max(0,Math.min(255,r));
+        id.data[i+1]=Math.max(0,Math.min(255,g));
+        id.data[i+2]=Math.max(0,Math.min(255,b));
+        id.data[i+3]=255;
+      }
+      ctx.putImageData(id,0,0);
+      // add smooth blur to make it more photo-like
+      break;
+    }
+  }
+  return canvas;
+}
+
+// =============================================
+//  Image loading
+// =============================================
+function setSourceImage(canvas) {
+  const W = canvas.width, H = canvas.height;
+  const maxDim = 256;
+  let dw = W, dh = H;
+  if (W > maxDim || H > maxDim) {
+    const scale = maxDim / Math.max(W, H);
+    dw = Math.round(W * scale); dh = Math.round(H * scale);
+  }
+  const sc = document.getElementById('srcCanvas');
+  sc.width = dw; sc.height = dh;
+  const ctx = sc.getContext('2d');
+  ctx.drawImage(canvas, 0, 0, dw, dh);
+  srcImageData = ctx.getImageData(0, 0, dw, dh);
+  srcW = dw; srcH = dh;
+
+  // show thumb
+  const thumbWrap = document.getElementById('thumbWrap');
+  const thumbImg  = document.getElementById('thumbImg');
+  thumbImg.src = canvas.toDataURL();
+  thumbWrap.style.display = 'block';
+}
+
+function loadSample(name) {
+  document.querySelectorAll('.sample-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  const sz = 256;
+  const cv = generateSample(name, sz, sz);
+  setSourceImage(cv);
+}
+
+// File input
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = img.width; cv.height = img.height;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      setSourceImage(cv);
+      document.querySelectorAll('.sample-btn').forEach(b => b.classList.remove('active'));
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Drag & drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = img.width; cv.height = img.height;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      setSourceImage(cv);
+      document.querySelectorAll('.sample-btn').forEach(b => b.classList.remove('active'));
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// =============================================
+//  Grayscale extraction
+// =============================================
+function toGray(imageData) {
+  const W = imageData.width, H = imageData.height;
+  const gray = new Float32Array(W * H);
+  for (let i = 0; i < W*H; i++) {
+    gray[i] = 0.299*imageData.data[i*4] + 0.587*imageData.data[i*4+1] + 0.114*imageData.data[i*4+2];
+  }
+  return { gray, W, H };
+}
+
+// =============================================
+//  Spatial filter (convolution)
+// =============================================
+function convolve(gray, W, H, kernel, size, divisor, normalize) {
+  const half = Math.floor(size/2);
+  const out = new Float32Array(W*H);
+  for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+    let sum = 0;
+    for (let ky=0; ky<size; ky++) for (let kx=0; kx<size; kx++) {
+      const sy = Math.min(H-1, Math.max(0, y+ky-half));
+      const sx = Math.min(W-1, Math.max(0, x+kx-half));
+      sum += gray[sy*W+sx] * kernel[ky*size+kx];
+    }
+    out[y*W+x] = divisor !== 1 ? sum/divisor : sum;
+  }
+  if (normalize) {
+    let mn=Infinity,mx=-Infinity;
+    for(const v of out){if(v<mn)mn=v;if(v>mx)mx=v;}
+    const rng=mx-mn||1;
+    for(let i=0;i<out.length;i++) out[i]=(out[i]-mn)/rng*255;
+  } else {
+    for(let i=0;i<out.length;i++) out[i]=Math.max(0,Math.min(255,out[i]));
+  }
+  return out;
+}
+
+// =============================================
+//  Cooley-Tukey FFT (radix-2, in-place)
+//  Handles any length by zero-padding to next power of 2.
+//  invert=true → IFFT with 1/N normalization.
+// =============================================
+function fft1d(re, im, invert) {
+  const N = re.length;
+  // Bit-reversal permutation
+  for (let i=1,j=0; i<N; i++) {
+    let bit = N>>1;
+    for (; j&bit; bit>>=1) j^=bit;
+    j^=bit;
+    if (i<j) {
+      let t=re[i]; re[i]=re[j]; re[j]=t;
+      t=im[i]; im[i]=im[j]; im[j]=t;
+    }
+  }
+  // Butterfly stages
+  for (let len=2; len<=N; len<<=1) {
+    const ang = 2*Math.PI/len * (invert ? 1 : -1);
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i=0; i<N; i+=len) {
+      let curRe=1, curIm=0;
+      const half = len>>1;
+      for (let j=0; j<half; j++) {
+        const uRe=re[i+j],   uIm=im[i+j];
+        const vRe=re[i+j+half]*curRe - im[i+j+half]*curIm;
+        const vIm=re[i+j+half]*curIm + im[i+j+half]*curRe;
+        re[i+j]      = uRe+vRe; im[i+j]      = uIm+vIm;
+        re[i+j+half] = uRe-vRe; im[i+j+half] = uIm-vIm;
+        const nr = curRe*wRe - curIm*wIm;
+        curIm = curRe*wIm + curIm*wRe;
+        curRe = nr;
+      }
+    }
+  }
+  if (invert) { for (let i=0;i<N;i++) { re[i]/=N; im[i]/=N; } }
+}
+
+function nextPow2(n) { let p=1; while(p<n) p<<=1; return p; }
+
+// 2D FFT: row-then-column, padding to power-of-2 in each dim
+function fft2d(gray, W, H) {
+  const PW = nextPow2(W), PH = nextPow2(H);
+  const Re = new Float64Array(PW*PH), Im = new Float64Array(PW*PH);
+  // Copy source into padded array
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++) Re[y*PW+x] = gray[y*W+x];
+
+  // Row FFTs
+  const rb = new Float64Array(PW), ri = new Float64Array(PW);
+  for (let y=0;y<PH;y++) {
+    rb.set(Re.subarray(y*PW,(y+1)*PW));
+    ri.set(Im.subarray(y*PW,(y+1)*PW));
+    fft1d(rb, ri, false);
+    Re.set(rb, y*PW); Im.set(ri, y*PW);
+  }
+  // Column FFTs
+  const cb = new Float64Array(PH), ci = new Float64Array(PH);
+  for (let x=0;x<PW;x++) {
+    for (let y=0;y<PH;y++) { cb[y]=Re[y*PW+x]; ci[y]=Im[y*PW+x]; }
+    fft1d(cb, ci, false);
+    for (let y=0;y<PH;y++) { Re[y*PW+x]=cb[y]; Im[y*PW+x]=ci[y]; }
+  }
+  return {Re, Im, PW, PH};
+}
+
+// 2D IFFT: column-then-row
+function ifft2d(Re, Im, PW, PH, W, H) {
+  // Column IFFTs
+  const cb = new Float64Array(PH), ci = new Float64Array(PH);
+  for (let x=0;x<PW;x++) {
+    for (let y=0;y<PH;y++) { cb[y]=Re[y*PW+x]; ci[y]=Im[y*PW+x]; }
+    fft1d(cb, ci, true);
+    for (let y=0;y<PH;y++) { Re[y*PW+x]=cb[y]; Im[y*PW+x]=ci[y]; }
+  }
+  // Row IFFTs — extract only W columns (discard padding)
+  const rb = new Float64Array(PW), ri = new Float64Array(PW);
+  const out = new Float32Array(W*H);
+  for (let y=0;y<H;y++) {
+    rb.set(Re.subarray(y*PW,(y+1)*PW));
+    ri.set(Im.subarray(y*PW,(y+1)*PW));
+    fft1d(rb, ri, true);
+    for (let x=0;x<W;x++) out[y*W+x] = rb[x];
+  }
+  return out;
+}
+
+// Apply ideal LPF or HPF in frequency domain
+function freqFilter(gray, W, H, mode, radius) {
+  const {Re, Im, PW, PH} = fft2d(gray, W, H);
+
+  // Mask: DC is at (0,0), negative freqs wrap at PW/2, PH/2
+  for (let v=0; v<PH; v++) for (let u=0; u<PW; u++) {
+    const fu = u <= PW>>1 ? u : u-PW;
+    const fv = v <= PH>>1 ? v : v-PH;
+    const r = Math.sqrt(fu*fu + fv*fv);
+    const pass = mode==='low' ? r<=radius : r>radius;
+    if (!pass) { Re[v*PW+u]=0; Im[v*PW+u]=0; }
+  }
+
+  const raw = ifft2d(Re, Im, PW, PH, W, H);
+
+  // Normalize to 0-255
+  let mn=Infinity, mx=-Infinity;
+  for (const v of raw) { if(v<mn)mn=v; if(v>mx)mx=v; }
+  const rng = mx-mn || 1;
+  const out = new Float32Array(raw.length);
+  for (let i=0;i<out.length;i++) out[i]=(raw[i]-mn)/rng*255;
+  return out;
+}
+
+// =============================================
+//  Render gray array to canvas
+// =============================================
+function grayToCanvas(gray, W, H) {
+  const cv = document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const ctx=cv.getContext('2d');
+  const id=ctx.createImageData(W,H);
+  for(let i=0;i<W*H;i++){
+    const v=Math.round(Math.max(0,Math.min(255,gray[i])));
+    id.data[i*4]=v;id.data[i*4+1]=v;id.data[i*4+2]=v;id.data[i*4+3]=255;
+  }
+  ctx.putImageData(id,0,0);
+  return cv;
+}
+
+function imageDataToCanvas(imageData) {
+  const cv=document.createElement('canvas');
+  cv.width=imageData.width; cv.height=imageData.height;
+  cv.getContext('2d').putImageData(imageData,0,0);
+  return cv;
+}
+
+// =============================================
+//  Build result card
+// =============================================
+function makeCard(type, typeName, name, desc, canvas, extraInfo) {
+  const card = document.createElement('div');
+  card.className = `result-card ${type}-type`;
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = `
+    <p class="card-type ${type}">${typeName}</p>
+    <p class="card-name">${name}</p>
+    ${desc ? `<p class="card-desc">${desc}</p>` : ''}
+  `;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'card-canvas';
+  canvas.style.cssText = 'width:100%;height:auto;image-rendering:auto;display:block;';
+  wrap.appendChild(canvas);
+
+  const footer = document.createElement('div');
+  footer.className = 'card-footer';
+  footer.innerHTML = `<span>${canvas.width}×${canvas.height}px</span><span>${extraInfo||''}</span>`;
+
+  card.appendChild(header);
+  card.appendChild(wrap);
+  card.appendChild(footer);
+  return card;
+}
+
+// =============================================
+//  Run all filters
+// =============================================
+function runAll() {
+  if (!srcImageData) {
+    alert('先に画像を選択してください。');
+    return;
+  }
+
+  const main = document.getElementById('mainContent');
+  document.getElementById('emptyState')?.remove();
+  main.innerHTML = '';
+
+  // Info bar
+  const infoBar = document.createElement('div');
+  infoBar.className = 'info-bar';
+  infoBar.innerHTML = `
+    <span style="color:var(--ink2);">処理中…</span>
+  `;
+  main.appendChild(infoBar);
+
+  // Use setTimeout to let the DOM update before heavy processing
+  setTimeout(() => {
+    const {gray, W, H} = toGray(srcImageData);
+    const norm = document.getElementById('toggleNorm').checked;
+    const lpfR = parseInt(document.getElementById('slLPF').value);
+    const hpfR = parseInt(document.getElementById('slHPF').value);
+    const kernel3 = getKernel();
+    const preset = PRESETS[currentPreset] || PRESETS['smooth3'];
+
+    // --- Spatial filter ---
+    let spatKernel = kernel3, spatSize = 3, spatDiv = 1;
+    if (currentPreset === 'smooth5') {
+      spatKernel = Array(25).fill(1);
+      spatSize = 5; spatDiv = 25;
+    } else {
+      spatDiv = preset.div || 1;
+    }
+
+    // --- Process ---
+    const results = [];
+
+    // 1. Original
+    results.push({
+      type: 'original', typeName: 'ORIGINAL', name: 'オリジナル',
+      desc: 'グレースケール変換後', canvas: grayToCanvas(gray, W, H), info: ''
+    });
+
+    // 2. LPF
+    const lpfGray = freqFilter(gray, W, H, 'low', lpfR);
+    results.push({
+      type: 'freq', typeName: 'FREQUENCY', name: `ローパスフィルタ`,
+      desc: `カットオフ半径 = ${lpfR}`, canvas: grayToCanvas(lpfGray, W, H), info: 'DFT → LPF → IDFT'
+    });
+
+    // 3. HPF
+    const hpfGray = freqFilter(gray, W, H, 'high', hpfR);
+    results.push({
+      type: 'freq', typeName: 'FREQUENCY', name: `ハイパスフィルタ`,
+      desc: `カットオフ半径 = ${hpfR}`, canvas: grayToCanvas(hpfGray, W, H), info: 'DFT → HPF → IDFT'
+    });
+
+    // 4. Spatial (preset)
+    const spatGray = convolve(gray, W, H, spatKernel, spatSize, spatDiv, norm);
+    results.push({
+      type: 'spatial', typeName: 'SPATIAL', name: preset.name,
+      desc: preset.desc, canvas: grayToCanvas(spatGray, W, H), info: `${spatSize}×${spatSize} kernel`
+    });
+
+    // 5. Custom kernel (if different from preset)
+    if (currentPreset !== 'custom') {
+      const customK = getKernel();
+      const customDiv = Math.abs(customK.reduce((a,b)=>a+b,0)) > 0.01 ? customK.reduce((a,b)=>a+b,0) : 1;
+      const customGray = convolve(gray, W, H, customK, 3, customDiv, norm);
+      results.push({
+        type: 'custom', typeName: 'CUSTOM KERNEL', name: 'カスタムカーネル',
+        desc: `sum = ${customK.reduce((a,b)=>a+b,0).toFixed(2)}`, canvas: grayToCanvas(customGray, W, H), info: '3×3 convolution'
+      });
+    }
+
+    // Build grid
+    main.innerHTML = '';
+
+    const infoBar2 = document.createElement('div');
+    infoBar2.className = 'info-bar';
+    infoBar2.innerHTML = `
+      <span style="color:var(--ink);">入力: ${W}×${H}px</span>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-pip" style="background:var(--ink3);"></div>オリジナル</div>
+        <div class="legend-item"><div class="legend-pip" style="background:var(--accent2);"></div>周波数フィルタ</div>
+        <div class="legend-item"><div class="legend-pip" style="background:var(--accent3);"></div>空間フィルタ</div>
+        <div class="legend-item"><div class="legend-pip" style="background:var(--accent);"></div>カスタム</div>
+      </div>
+    `;
+    main.appendChild(infoBar2);
+
+    const grid = document.createElement('div');
+    grid.className = 'results-grid';
+
+    for (const r of results) {
+      const card = makeCard(
+        r.type==='original'?'original freq spatial custom'.split(' ').find(t=>r.type===t)||'original':r.type,
+        r.typeName, r.name, r.desc, r.canvas, r.info
+      );
+      grid.appendChild(card);
+    }
+
+    main.appendChild(grid);
+  }, 30);
+}
+
+// =============================================
+//  Slider sync
+// =============================================
+['LPF','HPF'].forEach(id => {
+  document.getElementById('sl'+id).addEventListener('input', function(){
+    document.getElementById('v'+id).textContent = this.value;
+  });
+});
+
+// =============================================
+//  Init
+// =============================================
+buildKernelGrid();
+loadPreset('smooth3');
+
+// Load a default sample on start
+setTimeout(() => {
+  const cv = generateSample('lena', 256, 256);
+  setSourceImage(cv);
+}, 100);
+</script>
+</body>
+</html>
