@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>画像のサンプリング・量子化デモ</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 20px;
+    text-align: center;
+    background: #fafafa;
+  }
+  .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 16px 0 20px;
+    padding: 16px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    text-align: left;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 240px 1fr 130px;
+    gap: 12px;
+    align-items: center;
+  }
+  label {
+    font-weight: 600;
+  }
+  input[type="range"] {
+    width: 100%;
+  }
+  .val {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  button {
+    padding: 8px 14px;
+    border: 1px solid #bbb;
+    border-radius: 8px;
+    background: #f3f3f3;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #e9e9e9;
+  }
+  button.active {
+    background: #dfefff;
+    border-color: #7aa7ff;
+    font-weight: 700;
+  }
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 20px;
+  }
+  .panel {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  canvas {
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+  .hint {
+    color: #444;
+    font-size: 14px;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .small {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.5;
+  }
+  .dropzone {
+    margin-top: 8px;
+    padding: 18px;
+    border: 2px dashed #bbb;
+    border-radius: 10px;
+    background: #fcfcfc;
+    color: #555;
+  }
+  .dropzone.dragover {
+    background: #eef6ff;
+    border-color: #6a9df8;
+    color: #1d4ed8;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>画像のサンプリング・量子化デモ</h2>
+  <p>任意の画像を読み込み、<b>画素を荒くする</b>／<b>ビット数を下げる</b> を切り替えて比較できます。</p>
+
+  <div class="controls">
+    <div class="row">
+      <label>画像を読み込む</label>
+      <input type="file" id="upload" accept="image/*">
+      <div></div>
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      ここに画像をドラッグ＆ドロップでも読み込めます
+    </div>
+
+    <div class="row">
+      <label>画素をまとめる大きさ（サンプリング）</label>
+      <input type="range" id="blockSize" min="1" max="32" value="1" step="1">
+      <div class="val" id="blockSizeVal">1×1画素</div>
+    </div>
+
+    <div class="row">
+      <label>ビット数（量子化）</label>
+      <input type="range" id="bits" min="1" max="8" value="8" step="1">
+      <div class="val" id="bitsVal">8 bit</div>
+    </div>
+
+    <div class="btns">
+      <button class="modeBtn active" data-mode="both">両方</button>
+      <button class="modeBtn" data-mode="sampling">サンプリングだけ</button>
+      <button class="modeBtn" data-mode="quantization">量子化だけ</button>
+      <button id="resetBtn">元に戻す</button>
+      <button id="sampleBtn">サンプル画像を入れる</button>
+    </div>
+
+    <div class="small">
+      ・サンプリング = 何×何画素を1つにまとめるか<br>
+      ・量子化 = 何 bit で色を表すか
+    </div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <h3>元画像</h3>
+      <canvas id="srcCanvas"></canvas>
+    </div>
+    <div class="panel">
+      <h3>処理後</h3>
+      <canvas id="dstCanvas"></canvas>
+      <div class="hint" id="status">画像を読み込んでください。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const upload = document.getElementById('upload');
+  const dropzone = document.getElementById('dropzone');
+  const blockSize = document.getElementById('blockSize');
+  const bits = document.getElementById('bits');
+  const blockSizeVal = document.getElementById('blockSizeVal');
+  const bitsVal = document.getElementById('bitsVal');
+  const resetBtn = document.getElementById('resetBtn');
+  const sampleBtn = document.getElementById('sampleBtn');
+  const status = document.getElementById('status');
+  const modeButtons = [...document.querySelectorAll('.modeBtn')];
+
+  const srcCanvas = document.getElementById('srcCanvas');
+  const dstCanvas = document.getElementById('dstCanvas');
+  const srcCtx = srcCanvas.getContext('2d');
+  const dstCtx = dstCanvas.getContext('2d');
+
+  const offCanvas = document.createElement('canvas');
+  const offCtx = offCanvas.getContext('2d');
+
+  const img = new Image();
+  let hasImage = false;
+  let mode = 'both'; // both | sampling | quantization
+
+  function updateLabels() {
+    const b = parseInt(blockSize.value, 10);
+    const q = parseInt(bits.value, 10);
+    blockSizeVal.textContent = `${b}×${b}画素`;
+    bitsVal.textContent = `${q} bit`;
+  }
+
+  function fitCanvas(w, h) {
+    srcCanvas.width = w;
+    srcCanvas.height = h;
+    dstCanvas.width = w;
+    dstCanvas.height = h;
+    offCanvas.width = w;
+    offCanvas.height = h;
+  }
+
+  function drawOriginal() {
+    srcCtx.clearRect(0, 0, srcCanvas.width, srcCanvas.height);
+    srcCtx.drawImage(img, 0, 0, srcCanvas.width, srcCanvas.height);
+  }
+
+  function quantizeChannel(value, levels) {
+    if (levels <= 1) return 0;
+    const step = 255 / (levels - 1);
+    return Math.round(value / step) * step;
+  }
+
+  function applyQuantization(imageData, levels) {
+    if (levels >= 256) return imageData;
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      data[i]     = quantizeChannel(data[i], levels);
+      data[i + 1] = quantizeChannel(data[i + 1], levels);
+      data[i + 2] = quantizeChannel(data[i + 2], levels);
+    }
+    return imageData;
+  }
+
+  function render() {
+    if (!hasImage) return;
+
+    const block = parseInt(blockSize.value, 10);
+    const qBits = parseInt(bits.value, 10);
+    const levels = Math.pow(2, qBits);
+
+    updateLabels();
+
+    // 元画像を一度 offCanvas に描く
+    offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
+    offCtx.drawImage(img, 0, 0, offCanvas.width, offCanvas.height);
+
+    // 量子化
+    if (mode === 'quantization' || mode === 'both') {
+      let imageData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+      imageData = applyQuantization(imageData, levels);
+      offCtx.putImageData(imageData, 0, 0);
+    }
+
+    // 出力先をクリア
+    dstCtx.clearRect(0, 0, dstCanvas.width, dstCanvas.height);
+
+    // サンプリング（画素をまとめる）
+    if (mode === 'sampling' || mode === 'both') {
+      if (block <= 1) {
+        dstCtx.imageSmoothingEnabled = false;
+        dstCtx.drawImage(offCanvas, 0, 0, dstCanvas.width, dstCanvas.height);
+      } else {
+        const smallW = Math.max(1, Math.floor(offCanvas.width / block));
+        const smallH = Math.max(1, Math.floor(offCanvas.height / block));
+
+        const tiny = document.createElement('canvas');
+        tiny.width = smallW;
+        tiny.height = smallH;
+        const tinyCtx = tiny.getContext('2d');
+
+        tinyCtx.imageSmoothingEnabled = false;
+        tinyCtx.drawImage(offCanvas, 0, 0, smallW, smallH);
+
+        dstCtx.imageSmoothingEnabled = false;
+        dstCtx.drawImage(tiny, 0, 0, dstCanvas.width, dstCanvas.height);
+      }
+    } else {
+      // 量子化だけのときはそのまま描く
+      dstCtx.imageSmoothingEnabled = false;
+      dstCtx.drawImage(offCanvas, 0, 0, dstCanvas.width, dstCanvas.height);
+    }
+
+    const modeText = mode === 'both'
+      ? 'サンプリングと量子化を同時に適用しています'
+      : mode === 'sampling'
+      ? 'サンプリングのみを適用しています'
+      : '量子化のみを適用しています';
+
+    status.textContent =
+      `${modeText} / サンプリング: ${block}×${block}画素 / 量子化: ${qBits} bit（${levels}段階）`;
+  }
+
+  function loadImageFromDataURL(dataURL) {
+    img.onload = () => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      fitCanvas(w, h);
+      drawOriginal();
+      hasImage = true;
+      render();
+    };
+    img.src = dataURL;
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => loadImageFromDataURL(reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  upload.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    loadFile(file);
+  });
+
+  // ドラッグ＆ドロップ
+  ['dragenter', 'dragover'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.add('dragover');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove('dragover');
+    });
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    loadFile(file);
+  });
+
+  blockSize.addEventListener('input', render);
+  bits.addEventListener('input', render);
+
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.dataset.mode;
+      render();
+    });
+  });
+
+  resetBtn.addEventListener('click', () => {
+    if (!hasImage) return;
+    blockSize.value = 1;
+    bits.value = 8;
+    mode = 'both';
+    modeButtons.forEach(b => b.classList.remove('active'));
+    document.querySelector('.modeBtn[data-mode="both"]').classList.add('active');
+    drawOriginal();
+    render();
+  });
+
+  sampleBtn.addEventListener('click', () => {
+    const sampleSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ffffff"/>
+            <stop offset="100%" stop-color="#dfe9f3"/>
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#g)"/>
+        <rect x="60" y="60" width="320" height="180" rx="18" fill="#f7f7f7" stroke="#222" stroke-width="8"/>
+        <circle cx="220" cy="150" r="52" fill="#ffcc66" stroke="#222" stroke-width="8"/>
+        <text x="500" y="160" font-size="72" font-family="Arial, sans-serif" fill="#222">Chiba Tech</text>
+        <text x="500" y="240" font-size="38" font-family="Arial, sans-serif" fill="#444">Sampling & Quantization</text>
+        <path d="M70 470 L180 360 L250 420 L360 300 L470 390 L580 260 L690 340 L810 200 L910 240"
+              fill="none" stroke="#1f77b4" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="760" y="60" width="140" height="140" fill="#e74c3c" opacity="0.75"/>
+      </svg>
+    `.trim();
+
+    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(sampleSvg);
+    loadImageFromDataURL(url);
+  });
+
+  updateLabels();
+</script>
+</body>
+</html>
