@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フーリエ画像分解デモ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+  :root {
+    --bg:#0d0e12;--bg2:#14161c;--bg3:#1c1f28;
+    --border:rgba(255,255,255,0.08);
+    --accent:#4f8ef7;--accent2:#f7a84f;--accent3:#4ff7c8;
+    --text:#e8eaf0;--text2:#8890a8;--text3:#545a72;
+    --mono:'JetBrains Mono',monospace;
+    --sans:'Noto Sans JP',sans-serif;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;line-height:1.6;}
+  header{padding:18px 32px 14px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;}
+  header h1{font-family:var(--mono);font-size:15px;font-weight:500;letter-spacing:.02em;color:var(--accent);}
+  header p{font-size:12px;color:var(--text3);}
+  .badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(79,142,247,.12);color:var(--accent);border:1px solid rgba(79,142,247,.25);margin-left:auto;}
+  main{padding:14px 32px 40px;display:grid;grid-template-columns:280px 1fr;gap:14px;max-width:1400px;}
+  .left-panel{display:flex;flex-direction:column;gap:11px;}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px;}
+  .card-title{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px;}
+  select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:6px 10px;font-family:var(--sans);font-size:12px;cursor:pointer;outline:none;}
+  select:focus{border-color:rgba(79,142,247,.5);}
+  .sl-row{display:flex;align-items:center;gap:8px;margin-top:5px;}
+  .sl-label{font-size:11px;color:var(--text2);min-width:68px;}
+  input[type=range]{-webkit-appearance:none;flex:1;height:3px;background:var(--bg3);border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 0 3px rgba(79,142,247,.2);transition:box-shadow .15s;}
+  input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 5px rgba(79,142,247,.3);}
+  .sl-val{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:38px;text-align:right;}
+  .metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .metric-box{background:var(--bg3);border-radius:var(--radius);padding:7px 9px;border:1px solid var(--border);}
+  .metric-name{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;}
+  .metric-val{font-family:var(--mono);font-size:16px;font-weight:500;margin-top:1px;}
+  .metric-sub{font-size:9px;color:var(--text3);margin-top:1px;}
+  .good{color:#4ff7c8;}.mid{color:#f7a84f;}.bad{color:#f76e6e;}
+  .canvas-label{font-size:10px;color:var(--text3);margin-bottom:4px;font-family:var(--mono);letter-spacing:.04em;}
+  .canvas-sub{font-size:10px;color:var(--text3);text-align:center;margin-top:3px;}
+  canvas{display:block;image-rendering:pixelated;border-radius:var(--radius);border:1px solid var(--border);}
+  .right-panel{display:flex;flex-direction:column;gap:12px;}
+  .top-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .canvas-wrap canvas{width:100%;}
+  .tab-bar{display:flex;gap:4px;}
+  .tab{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;}
+  .tab.active{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.4);color:var(--accent);}
+  .comp-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .comp-item canvas{width:100%;}
+  .info-line{font-size:11px;color:var(--text3);padding:7px 11px;border-left:2px solid var(--border);line-height:1.8;}
+  .info-line strong{color:var(--text2);font-weight:500;}
+
+  /* Draw panel */
+  #drawCanvas{
+    cursor:crosshair;image-rendering:pixelated;
+    border-radius:var(--radius);border:1px solid rgba(79,142,247,.4);
+    width:100%;display:block;touch-action:none;
+  }
+  .draw-controls{display:flex;align-items:center;gap:7px;margin-top:7px;flex-wrap:wrap;}
+  .btn{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;transition:all .15s;}
+  .btn:hover{border-color:rgba(79,142,247,.4);color:var(--accent);}
+  .btn.primary{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.4);color:var(--accent);}
+  .pen-size{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:auto;}
+  .pen-size input{width:55px;}
+
+  /* Filter mode buttons */
+  .fmode-btn{
+    font-family:var(--mono);font-size:11px;
+    padding:5px 4px;border-radius:5px;
+    border:1px solid var(--border);background:var(--bg3);
+    color:var(--text2);cursor:pointer;transition:all .15s;
+    width:100%;text-align:center;
+  }
+  .fmode-btn:hover{border-color:rgba(79,142,247,.4);color:var(--accent);}
+  .fmode-btn.active{
+    background:rgba(79,142,247,.18);
+    border-color:rgba(79,142,247,.5);
+    color:var(--accent);font-weight:500;
+  }
+
+  /* Stepper control */
+  .stepper{display:flex;align-items:center;gap:0;}
+  .stepper-btn{
+    font-family:var(--mono);font-size:13px;font-weight:500;
+    width:26px;height:26px;border-radius:4px;
+    border:1px solid var(--border);background:var(--bg3);
+    color:var(--text2);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .15s;user-select:none;flex-shrink:0;
+    line-height:1;
+  }
+  .stepper-btn:hover{border-color:rgba(79,142,247,.5);color:var(--accent);background:rgba(79,142,247,.1);}
+  .stepper-btn:active{transform:scale(.92);}
+  .stepper-val{
+    font-family:var(--mono);font-size:11px;color:var(--accent);
+    min-width:42px;text-align:center;
+    background:var(--bg3);border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    height:26px;display:flex;align-items:center;justify-content:center;
+    cursor:default;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>FOURIER IMAGE DECOMPOSITION</h1>
+  <p>画像の周波数分解・再構成インタラクティブデモ</p>
+  <span class="badge">手書きDFT / ライブラリなし</span>
+</header>
+
+<main>
+  <div class="left-panel">
+
+    <div class="card">
+      <p class="card-title">入力画像の選択</p>
+      <select id="selImg">
+        <optgroup label="幾何学パターン">
+          <option value="checkerboard">チェッカーボード</option>
+          <option value="circles">同心円</option>
+          <option value="stripes">縞模様（横）</option>
+          <option value="stripes_diag">縞模様（斜め）</option>
+          <option value="gradient">グラデーション</option>
+        </optgroup>
+        <optgroup label="文字・図形">
+          <option value="face">シンプルな顔</option>
+          <option value="char_A">文字 "A"</option>
+          <option value="char_B">文字 "B"</option>
+          <option value="char_Z">文字 "Z"</option>
+          <option value="char_あ">ひらがな「あ」</option>
+          <option value="char_ん">ひらがな「ん」</option>
+          <option value="char_の">ひらがな「の」</option>
+          <option value="char_中">漢字「中」</option>
+        </optgroup>
+        <option value="draw">✏️ 手書き入力…</option>
+      </select>
+    </div>
+
+    <div class="card" id="drawPanel" style="display:none;">
+      <p class="card-title">手書き入力（32×32に変換）</p>
+      <canvas id="drawCanvas" width="160" height="160" style="width:100%;height:auto;"></canvas>
+      <div class="draw-controls">
+        <button class="btn primary" onclick="applyDrawing()">→ 解析する</button>
+        <button class="btn" onclick="clearDrawing()">消去</button>
+        <div class="pen-size">
+          ペン
+          <input type="range" id="penSize" min="2" max="16" value="6" step="1">
+          <span id="penSizeVal">6</span>px
+        </div>
+      </div>
+      <p style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.6;">黒背景に白で描画。マウスまたはタッチ対応。描いたら「解析する」を押してください。</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">使用する成分数</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-size:11px;color:var(--text2);">Top-k 成分</span>
+        <div class="stepper">
+          <button class="stepper-btn" onclick="stepK(-1)" title="1減らす">&#8249;</button>
+          <span class="stepper-val" id="valK">30</span>
+          <button class="stepper-btn" onclick="stepK(1)" title="1増やす">&#8250;</button>
+        </div>
+      </div>
+      <input type="range" id="slK" min="1" max="1024" value="30" step="1" style="width:100%;display:block;">
+      <div style="font-size:10px;color:var(--text3);margin-top:5px;font-family:var(--mono);">
+        全 <strong style="color:var(--text2);">1024</strong> 成分中 <span id="valPct">2.9</span>% 使用
+      </div>
+    </div>
+
+    <div class="card" id="filterCard">
+      <p class="card-title">フィルタモード</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px;">
+        <button class="fmode-btn active" id="fm_top"  onclick="setFilter('top')">振幅上位</button>
+        <button class="fmode-btn"        id="fm_low"  onclick="setFilter('low')">ローパス</button>
+        <button class="fmode-btn"        id="fm_high" onclick="setFilter('high')">ハイパス</button>
+        <button class="fmode-btn"        id="fm_band" onclick="setFilter('band')">バンドパス</button>
+      </div>
+      <div id="fp_radius" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--text2);" id="radiusLabel">カットオフ半径</span>
+          <div class="stepper">
+            <button class="stepper-btn" onclick="stepRadius(-1)">&#8249;</button>
+            <span class="stepper-val" id="valRadius">8</span>
+            <button class="stepper-btn" onclick="stepRadius(1)">&#8250;</button>
+          </div>
+        </div>
+        <input type="range" id="slRadius" min="1" max="22" value="8" step="1" style="width:100%;display:block;">
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;font-family:var(--mono);">
+          最大半径 = <strong style="color:var(--text2);">22</strong>
+        </div>
+      </div>
+      <div id="fp_band" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--text2);">内側半径（低周波除去）</span>
+          <div class="stepper">
+            <button class="stepper-btn" onclick="stepBandLo(-1)">&#8249;</button>
+            <span class="stepper-val" id="valBandLo">4</span>
+            <button class="stepper-btn" onclick="stepBandLo(1)">&#8250;</button>
+          </div>
+        </div>
+        <input type="range" id="slBandLo" min="0" max="21" value="4" step="1" style="width:100%;display:block;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11px;color:var(--text2);">外側半径（高周波除去）</span>
+          <div class="stepper">
+            <button class="stepper-btn" onclick="stepBandHi(-1)">&#8249;</button>
+            <span class="stepper-val" id="valBandHi">12</span>
+            <button class="stepper-btn" onclick="stepBandHi(1)">&#8250;</button>
+          </div>
+        </div>
+        <input type="range" id="slBandHi" min="1" max="22" value="12" step="1" style="width:100%;display:block;">
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6;" id="filterDesc">
+        振幅の大きい順に上位k成分を使用
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">再構成品質</p>
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <p class="metric-name">PSNR</p>
+          <p class="metric-val" id="mPSNR">—</p>
+          <p class="metric-sub">dB（高いほど良い）</p>
+        </div>
+        <div class="metric-box">
+          <p class="metric-name">SSIM</p>
+          <p class="metric-val" id="mSSIM">—</p>
+          <p class="metric-sub">0〜1（1が完全一致）</p>
+        </div>
+        <div class="metric-box">
+          <p class="metric-name">MSE</p>
+          <p class="metric-val" id="mMSE">—</p>
+          <p class="metric-sub">平均二乗誤差</p>
+        </div>
+        <div class="metric-box">
+          <p class="metric-name">使用成分</p>
+          <p class="metric-val" id="mK" style="color:var(--accent);">—</p>
+          <p class="metric-sub">/ 1024 成分</p>
+        </div>
+      </div>
+      <div style="margin-top:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:3px;">
+          <span>品質ゲージ（PSNR基準）</span><span id="qualLabel">—</span>
+        </div>
+        <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;">
+          <div id="qualBar" style="height:100%;border-radius:3px;width:0%;transition:width .3s;background:var(--accent3);"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card info-line">
+      <strong>DFT（離散フーリエ変換）</strong><br>
+      1024成分を振幅の大きい順にランク付けし、上位k成分の逆変換で再構成。<br><br>
+      <strong>スペクトル中央</strong>＝低周波（全体形状）<br>
+      <strong>スペクトル周辺</strong>＝高周波（エッジ・細部）<br><br>
+      <strong>PSNR</strong>：40dB以上 = 高品質<br>
+      <strong>SSIM</strong>：0.9以上 = 知覚的に類似<br>
+      <strong>計算量</strong>：O(N⁴)，N=32
+    </div>
+
+  </div>
+
+  <div class="right-panel">
+
+    <div class="top-row">
+      <div class="canvas-wrap">
+        <p class="canvas-label">ORIGINAL IMAGE</p>
+        <canvas id="cOrig" width="32" height="32"></canvas>
+        <p class="canvas-sub">元画像（32×32）</p>
+      </div>
+      <div class="canvas-wrap">
+        <p class="canvas-label">FREQUENCY SPECTRUM + ACTIVE COMPONENTS</p>
+        <canvas id="cSpec" width="32" height="32"></canvas>
+        <p class="canvas-sub"><span style="color:var(--accent);">●</span> 使用中　<span style="color:var(--text3);">●</span> 未使用（対数パワー）</p>
+      </div>
+      <div class="canvas-wrap">
+        <p class="canvas-label">RECONSTRUCTED IMAGE</p>
+        <canvas id="cRecon" width="32" height="32"></canvas>
+        <p class="canvas-sub" id="lRecon">再構成</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">各成分の振幅（上位128成分）— <span style="color:var(--accent);">■</span> 使用中　<span style="color:var(--text3);">■</span> 未使用</p>
+      <div style="height:68px;">
+        <canvas id="cBar" width="800" height="68" style="width:100%;height:100%;border:none;border-radius:0;"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">個別成分の詳細表示</p>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+        <div class="sl-row" style="flex:1;margin:0;">
+          <span class="sl-label" style="min-width:80px;">表示開始ランク</span>
+          <input type="range" id="slComp" min="1" max="1021" value="1" step="1">
+          <div class="stepper">
+            <button class="stepper-btn" onclick="stepComp(-1)" title="1減らす">&#8249;</button>
+            <span class="stepper-val" id="valComp">1</span>
+            <button class="stepper-btn" onclick="stepComp(1)" title="1増やす">&#8250;</button>
+          </div>
+          <span style="font-size:10px;color:var(--text3);font-family:var(--mono);">〜 <span id="valCompEnd">4</span></span>
+        </div>
+        <div class="tab-bar">
+          <button class="tab active" id="tabAmp" onclick="setMode('amp')">振幅</button>
+          <button class="tab" id="tabPhase" onclick="setMode('phase')">位相</button>
+          <button class="tab" id="tabBoth" onclick="setMode('both')">両方</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:6px;" id="stripSortLabel">表示順：振幅の大きい順</div>
+      <div class="comp-strip" id="compStrip"></div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Hidden canvas for text rendering -->
+<canvas id="textRender" width="32" height="32" style="display:none;"></canvas>
+
+<script>
+const N = 32;
+let currentImg, currentRe, currentIm, sortedComps;
+let compMode = 'amp';
+
+// ---- Render character using Canvas2D API (accurate, font-based) ----
+function makeCharImage(ch, fontStr) {
+  const tc = document.getElementById('textRender');
+  const ctx = tc.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, N, N);
+  ctx.fillStyle = '#fff';
+  ctx.font = fontStr;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ch, N/2, N/2 + 1);
+  const id = ctx.getImageData(0, 0, N, N);
+  const img = new Float32Array(N*N);
+  for (let i = 0; i < N*N; i++) img[i] = id.data[i*4];
+  return img;
+}
+
+// ---- Image generators ----
+function makeImage(type) {
+  const charMap = {
+    'char_A': ['A',  "bold 22px Arial,sans-serif"],
+    'char_B': ['B',  "bold 22px Arial,sans-serif"],
+    'char_Z': ['Z',  "bold 22px Arial,sans-serif"],
+    'char_あ':['あ', "bold 21px 'Noto Sans JP','Hiragino Kaku Gothic Pro',sans-serif"],
+    'char_ん':['ん', "bold 21px 'Noto Sans JP','Hiragino Kaku Gothic Pro',sans-serif"],
+    'char_の':['の', "bold 21px 'Noto Sans JP','Hiragino Kaku Gothic Pro',sans-serif"],
+    'char_中':['中', "bold 20px 'Noto Sans JP','Hiragino Kaku Gothic Pro',sans-serif"],
+  };
+  if (charMap[type]) {
+    const [ch, font] = charMap[type];
+    return makeCharImage(ch, font);
+  }
+
+  const img = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x;
+    switch (type) {
+      case 'checkerboard':  img[i]=((Math.floor(x/4)+Math.floor(y/4))%2)*220; break;
+      case 'circles': { const dx=x-N/2,dy=y-N/2,r=Math.sqrt(dx*dx+dy*dy); img[i]=(Math.sin(r*.9)>0)?200:40; break; }
+      case 'stripes':       img[i]=(Math.sin(x*Math.PI/4)>0)?220:40; break;
+      case 'stripes_diag':  img[i]=(Math.sin((x+y)*Math.PI/5)>0)?220:40; break;
+      case 'gradient':      img[i]=(x/N)*190+(y/N)*60; break;
+      case 'face': {
+        const dx=x-N/2,dy=y-N/2,r=Math.sqrt(dx*dx+dy*dy);
+        if(r<N*.45&&r>N*.40) img[i]=200;
+        else if(Math.abs(dx-5)<2&&dy>-8&&dy<-3) img[i]=200;
+        else if(Math.abs(dx+5)<2&&dy>-8&&dy<-3) img[i]=200;
+        else if(dy>3&&dy<8&&Math.abs(dx)<6) img[i]=200;
+        else img[i]=30; break;
+      }
+    }
+  }
+  return img;
+}
+
+// ---- DFT ----
+function dft2d(img) {
+  const re=new Float32Array(N*N), im=new Float32Array(N*N);
+  for(let v=0;v<N;v++) for(let u=0;u<N;u++) {
+    let sr=0,si=0;
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++) {
+      const a=-2*Math.PI*(u*x/N+v*y/N), px=img[y*N+x];
+      sr+=px*Math.cos(a); si+=px*Math.sin(a);
+    }
+    re[v*N+u]=sr; im[v*N+u]=si;
+  }
+  return {re,im};
+}
+
+function idft_partial(re, im, indices) {
+  const out=new Float32Array(N*N);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) {
+    let s=0;
+    for(const idx of indices) {
+      const u=idx%N, v=Math.floor(idx/N), a=2*Math.PI*(u*x/N+v*y/N);
+      s+=re[idx]*Math.cos(a)-im[idx]*Math.sin(a);
+    }
+    out[y*N+x]=s/(N*N);
+  }
+  return out;
+}
+
+// ---- Drawing utilities ----
+function drawGray(canvas, data, normalize=true) {
+  const ctx=canvas.getContext('2d'), id=ctx.createImageData(N,N);
+  let mn=Infinity,mx=-Infinity;
+  if(normalize){for(const v of data){if(v<mn)mn=v;if(v>mx)mx=v;}}else{mn=0;mx=255;}
+  const rng=mx-mn||1;
+  for(let i=0;i<N*N;i++){
+    const v=Math.round(((data[i]-mn)/rng)*255);
+    id.data[i*4]=v;id.data[i*4+1]=v;id.data[i*4+2]=v;id.data[i*4+3]=255;
+  }
+  ctx.putImageData(id,0,0);
+}
+
+function fftshift(arr) {
+  const out=new Float32Array(N*N),h=N/2;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) out[((y+h)%N)*N+(x+h)%N]=arr[y*N+x];
+  return out;
+}
+
+function drawSpectrum(re, im, usedSet) {
+  const mag=new Float32Array(N*N);
+  let mx=0;
+  for(let i=0;i<N*N;i++){const m=Math.log1p(Math.sqrt(re[i]*re[i]+im[i]*im[i]));mag[i]=m;if(m>mx)mx=m;}
+  const shifted=fftshift(mag);
+  const usedShifted=new Set(), h=N/2;
+  for(const idx of usedSet){const u=idx%N,v=Math.floor(idx/N);usedShifted.add(((v+h)%N)*N+(u+h)%N);}
+  const ctx=document.getElementById('cSpec').getContext('2d');
+  const id=ctx.createImageData(N,N);
+  for(let i=0;i<N*N;i++){
+    const v=Math.round((shifted[i]/(mx||1))*200+30);
+    if(usedShifted.has(i)){id.data[i*4]=79;id.data[i*4+1]=142;id.data[i*4+2]=247;id.data[i*4+3]=255;}
+    else{id.data[i*4]=v>>1;id.data[i*4+1]=v>>1;id.data[i*4+2]=v;id.data[i*4+3]=255;}
+  }
+  ctx.putImageData(id,0,0);
+}
+
+function drawBar(amps, k, activeIndices) {
+  const activeSet = activeIndices ? new Set(activeIndices.map(idx=>sortedComps.findIndex(c=>c.idx===idx))) : null;
+  const cv=document.getElementById('cBar'),W=800,H=68;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#14161c';ctx.fillRect(0,0,W,H);
+  const n=Math.min(128,amps.length),bw=Math.floor((W-n)/n),maxA=amps[0]||1;
+  for(let i=0;i<n;i++){
+    const bh=Math.max(2,Math.round((amps[i]/maxA)*(H-4))),bx=i*(bw+1);
+    ctx.fillStyle=i<k?'#4f8ef7':'#2a2d3a';
+    ctx.beginPath();ctx.roundRect(bx,H-bh,bw,bh,1);ctx.fill();
+  }
+  if(k<=128){
+    const lx=(k-1)*(bw+1)+bw;
+    ctx.strokeStyle='rgba(247,168,79,.7)';ctx.lineWidth=1.5;ctx.setLineDash([3,2]);
+    ctx.beginPath();ctx.moveTo(lx,0);ctx.lineTo(lx,H);ctx.stroke();ctx.setLineDash([]);
+  }
+}
+
+function hslToRgb(h,s,l){
+  let r,g,b;
+  if(s===0){r=g=b=l;}else{
+    const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;
+    const f=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<.5)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+    r=f(p,q,h+1/3);g=f(p,q,h);b=f(p,q,h-1/3);
+  }
+  return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+}
+
+// ---- Metrics ----
+function computeMetrics(orig, recon) {
+  let mse=0,n=N*N;
+  for(let i=0;i<n;i++){const d=orig[i]-recon[i];mse+=d*d;}
+  mse/=n;
+  const psnr=mse<.001?Infinity:10*Math.log10(255*255/mse);
+  let mu1=0,mu2=0;
+  for(let i=0;i<n;i++){mu1+=orig[i];mu2+=recon[i];}
+  mu1/=n;mu2/=n;
+  let s1=0,s2=0,s12=0;
+  for(let i=0;i<n;i++){const a=orig[i]-mu1,b=recon[i]-mu2;s1+=a*a;s2+=b*b;s12+=a*b;}
+  s1/=n;s2/=n;s12/=n;
+  const C1=(0.01*255)**2,C2=(0.03*255)**2;
+  const ssim=((2*mu1*mu2+C1)*(2*s12+C2))/((mu1**2+mu2**2+C1)*(s1+s2+C2));
+  return {mse,psnr,ssim};
+}
+
+function updateMetrics(orig, recon, k) {
+  const {mse,psnr,ssim}=computeMetrics(orig,recon);
+  const cls=psnr>=40?'good':psnr>=25?'mid':'bad';
+  document.getElementById('mPSNR').textContent=isFinite(psnr)?psnr.toFixed(1)+'dB':'∞';
+  document.getElementById('mPSNR').className='metric-val '+cls;
+  document.getElementById('mSSIM').textContent=ssim.toFixed(3);
+  document.getElementById('mSSIM').className='metric-val '+cls;
+  document.getElementById('mMSE').textContent=mse.toFixed(1);
+  document.getElementById('mMSE').className='metric-val';
+  document.getElementById('mK').textContent=k;
+  const pct=Math.min(100,isFinite(psnr)?(psnr/60)*100:100);
+  const bar=document.getElementById('qualBar');
+  bar.style.width=pct.toFixed(1)+'%';
+  bar.style.background=cls==='good'?'#4ff7c8':cls==='mid'?'#f7a84f':'#f76e6e';
+  const labels=['非常に低品質','低品質','普通','良好','非常に良好','完全一致'];
+  document.getElementById('qualLabel').textContent=labels[isFinite(psnr)?Math.min(5,Math.floor(psnr/10)):5];
+}
+
+// ---- Component strip ----
+function getStripList() {
+  // Get the active filtered indices, then sort by the appropriate order
+  const indices = getFilteredIndices();
+  // Build objects with idx and amp
+  const items = indices.map(idx => ({
+    idx,
+    amp: Math.sqrt(currentRe[idx]*currentRe[idx]+currentIm[idx]*currentIm[idx]),
+    freq: freqRadius(idx)
+  }));
+  if (filterMode === 'top') {
+    // amplitude descending (same as sortedComps order)
+    items.sort((a,b)=>b.amp-a.amp);
+  } else if (filterMode === 'low' || filterMode === 'band') {
+    // frequency ascending (low freq first)
+    items.sort((a,b)=>a.freq-b.freq);
+  } else if (filterMode === 'high') {
+    // frequency descending (high freq first)
+    items.sort((a,b)=>b.freq-a.freq);
+  }
+  return items;
+}
+
+function renderCompStrip() {
+  const strip=document.getElementById('compStrip');
+  strip.innerHTML='';
+  const stripList = getStripList();
+  const maxStart = Math.max(1, stripList.length - 3);
+  const slComp = document.getElementById('slComp');
+  slComp.max = maxStart;
+  const start=Math.min(parseInt(slComp.value)-1, maxStart-1);
+  document.getElementById('valComp').textContent=start+1;
+  document.getElementById('valCompEnd').textContent=Math.min(start+4,stripList.length);
+
+  // Show sort order label
+  const sortLabel = filterMode==='top' ? '振幅の大きい順'
+                  : filterMode==='high' ? '周波数の高い順'
+                  : '周波数の低い順';
+  const existingLabel = document.getElementById('stripSortLabel');
+  if(existingLabel) existingLabel.textContent='表示順：'+sortLabel;
+
+  for(let c=start;c<Math.min(start+4,stripList.length);c++){
+    const comp=stripList[c],idx=comp.idx,conj=(N*N-idx)%(N*N);
+    const r2=new Float32Array(N*N),i2=new Float32Array(N*N);
+    r2[idx]=currentRe[idx];i2[idx]=currentIm[idx];
+    if(conj!==idx){r2[conj]=currentRe[conj];i2[conj]=currentIm[conj];}
+    const ampImg=idft_partial(r2,i2,[idx,conj]);
+    const u=idx%N,v=Math.floor(idx/N);
+    const phase=Math.atan2(currentIm[idx],currentRe[idx]);
+    const phaseDeg=(phase*180/Math.PI).toFixed(1);
+
+    const div=document.createElement('div');
+    div.className='comp-item';
+
+    if(compMode==='amp'||compMode==='both'){
+      const cv=document.createElement('canvas');
+      cv.width=N;cv.height=N;
+      cv.style.cssText='width:100%;image-rendering:pixelated;border-radius:6px;border:1px solid var(--border);';
+      drawGray(cv,ampImg,true);
+      if(compMode==='both'){
+        const lbl=document.createElement('p');
+        lbl.style.cssText='font-size:9px;color:var(--text3);font-family:var(--mono);margin:2px 0 0;';
+        lbl.textContent='振幅パターン';
+        div.appendChild(cv);div.appendChild(lbl);
+      }else{div.appendChild(cv);}
+    }
+
+    if(compMode==='phase'||compMode==='both'){
+      const cv2=document.createElement('canvas');
+      cv2.width=N;cv2.height=N;
+      cv2.style.cssText='width:100%;image-rendering:pixelated;border-radius:6px;border:1px solid var(--border);margin-top:'+(compMode==='both'?'5':'0')+'px;';
+      const ctx2=cv2.getContext('2d'),id2=ctx2.createImageData(N,N);
+      const hue=((phase+Math.PI)/(2*Math.PI))*300;
+      for(let py=0;py<N;py++) for(let px=0;px<N;px++){
+        const a=2*Math.PI*(u*px/N+v*py/N)+phase;
+        const val=(Math.cos(a)+1)*.5;
+        const [r,g,b]=hslToRgb(hue/360,.8,.12+val*.55);
+        const ii=(py*N+px)*4;
+        id2.data[ii]=r;id2.data[ii+1]=g;id2.data[ii+2]=b;id2.data[ii+3]=255;
+      }
+      ctx2.putImageData(id2,0,0);
+      if(compMode==='both'){
+        const lbl2=document.createElement('p');
+        lbl2.style.cssText='font-size:9px;color:var(--text3);font-family:var(--mono);margin:2px 0 0;';
+        lbl2.textContent='位相パターン';
+        div.appendChild(cv2);div.appendChild(lbl2);
+      }else{div.appendChild(cv2);}
+    }
+
+    const info=document.createElement('div');
+    info.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:2px 0;margin-top:4px;';
+    info.innerHTML=`<span style="font-family:var(--mono);font-size:9px;color:var(--accent);">#${c+1} u=${u},v=${v}</span><span style="font-family:var(--mono);font-size:9px;color:var(--text3);">振幅 ${comp.amp.toFixed(0)}</span>`;
+    div.appendChild(info);
+
+    const normPhase=(phase+Math.PI)/(2*Math.PI);
+    const phBar=document.createElement('div');
+    phBar.style.cssText=`height:3px;border-radius:2px;margin-top:2px;background:linear-gradient(90deg,#4f8ef7 ${(normPhase*100).toFixed(0)}%,#2a2d3a ${(normPhase*100).toFixed(0)}%);`;
+    div.appendChild(phBar);
+
+    const phLabel=document.createElement('div');
+    phLabel.style.cssText='font-family:var(--mono);font-size:9px;color:var(--text3);text-align:right;margin-top:1px;';
+    phLabel.textContent=`位相 ${phaseDeg}°`;
+    div.appendChild(phLabel);
+
+    strip.appendChild(div);
+  }
+}
+
+// ---- Filter state ----
+let filterMode = 'top'; // top | low | high | band
+
+function freqRadius(idx) {
+  // distance from DC (u=0,v=0) in shifted spectrum, wrapping for negative freqs
+  const u = idx % N, v = Math.floor(idx / N);
+  const fu = u <= N/2 ? u : u - N;
+  const fv = v <= N/2 ? v : v - N;
+  return Math.sqrt(fu*fu + fv*fv);
+}
+
+function getFilteredIndices() {
+  if (filterMode === 'top') {
+    const k = parseInt(document.getElementById('slK').value);
+    return sortedComps.slice(0, k).map(c => c.idx);
+  }
+  if (filterMode === 'low') {
+    const r = parseInt(document.getElementById('slRadius').value);
+    return Array.from({length:N*N},(_,i)=>i).filter(i => freqRadius(i) <= r);
+  }
+  if (filterMode === 'high') {
+    const r = parseInt(document.getElementById('slRadius').value);
+    return Array.from({length:N*N},(_,i)=>i).filter(i => freqRadius(i) > r);
+  }
+  if (filterMode === 'band') {
+    const lo = parseInt(document.getElementById('slBandLo').value);
+    const hi = parseInt(document.getElementById('slBandHi').value);
+    return Array.from({length:N*N},(_,i)=>i).filter(i => {
+      const r = freqRadius(i);
+      return r >= lo && r <= hi;
+    });
+  }
+  return [];
+}
+
+function setFilter(mode) {
+  filterMode = mode;
+  ['top','low','high','band'].forEach(m => {
+    document.getElementById('fm_'+m).classList.toggle('active', m===mode);
+  });
+  // Show/hide controls
+  const isRadius = (mode==='low'||mode==='high');
+  document.getElementById('fp_radius').style.display = isRadius ? 'block' : 'none';
+  document.getElementById('fp_band').style.display   = (mode==='band') ? 'block' : 'none';
+  // k slider only relevant in top mode
+  document.getElementById('slK').closest('.card').style.opacity = (mode==='top') ? '1' : '0.35';
+  document.getElementById('slK').closest('.card').style.pointerEvents = (mode==='top') ? '' : 'none';
+  // label
+  const rl = document.getElementById('radiusLabel');
+  if(rl) rl.textContent = mode==='low' ? 'カットオフ半径（以下を通過）' : 'カットオフ半径（以上を通過）';
+  const descs = {
+    top: '振幅の大きい順に上位k成分を使用',
+    low: '指定半径以内の低周波成分のみ通過（輪郭・ぼかし）',
+    high: '指定半径を超える高周波成分のみ通過（エッジ強調）',
+    band: '内側〜外側半径の間の成分のみ通過',
+  };
+  document.getElementById('filterDesc').textContent = descs[mode];
+  // Reset component strip to position 1 when mode changes
+  const slComp=document.getElementById('slComp');
+  slComp.value=1;
+  document.getElementById('valComp').textContent=1;
+  update();
+}
+
+function stepRadius(d){
+  const sl=document.getElementById('slRadius');
+  sl.value=Math.max(1,Math.min(22,parseInt(sl.value)+d));
+  document.getElementById('valRadius').textContent=sl.value;
+  update();
+}
+function stepBandLo(d){
+  const sl=document.getElementById('slBandLo');
+  sl.value=Math.max(0,Math.min(21,parseInt(sl.value)+d));
+  document.getElementById('valBandLo').textContent=sl.value;
+  update();
+}
+function stepBandHi(d){
+  const sl=document.getElementById('slBandHi');
+  sl.value=Math.max(1,Math.min(22,parseInt(sl.value)+d));
+  document.getElementById('valBandHi').textContent=sl.value;
+  update();
+}
+
+// ---- Main ----
+function processImage(img) {
+  currentImg=img;
+  drawGray(document.getElementById('cOrig'),img,false);
+  const {re,im}=dft2d(img);
+  currentRe=re;currentIm=im;
+  const amps=Array.from({length:N*N},(_,i)=>({idx:i,amp:Math.sqrt(re[i]*re[i]+im[i]*im[i])}));
+  amps.sort((a,b)=>b.amp-a.amp);
+  sortedComps=amps;
+  update();
+}
+
+function update() {
+  const k=parseInt(document.getElementById('slK').value);
+  document.getElementById('valK').textContent=k;
+  document.getElementById('valPct').textContent=((k/1024)*100).toFixed(1);
+  const indices=getFilteredIndices();
+  const k2=indices.length;
+  drawSpectrum(currentRe,currentIm,new Set(indices));
+  drawBar(sortedComps.map(c=>c.amp), filterMode==='top'?k:k2, indices);
+  const recon=idft_partial(currentRe,currentIm,indices);
+  drawGray(document.getElementById('cRecon'),recon,true);
+  document.getElementById('lRecon').textContent=`${indices.length}成分（${((indices.length/1024)*100).toFixed(1)}%）`;
+  updateMetrics(currentImg,recon,indices.length);
+  renderCompStrip();
+}
+
+function init() {
+  const type=document.getElementById('selImg').value;
+  document.getElementById('drawPanel').style.display=type==='draw'?'block':'none';
+  if(type!=='draw') processImage(makeImage(type));
+}
+
+function setMode(m) {
+  compMode=m;
+  ['Amp','Phase','Both'].forEach(t=>{
+    document.getElementById('tab'+t).className='tab'+(m===t.toLowerCase()?' active':'');
+  });
+  renderCompStrip();
+}
+
+document.getElementById('slK').addEventListener('input', function(){
+  document.getElementById('valK').textContent = this.value;
+  update();
+});
+document.getElementById('selImg').addEventListener('change',init);
+document.getElementById('slRadius').addEventListener('input', function(){
+  document.getElementById('valRadius').textContent=this.value;
+  update();
+});
+document.getElementById('slBandLo').addEventListener('input', function(){
+  document.getElementById('valBandLo').textContent=this.value;
+  update();
+});
+document.getElementById('slBandHi').addEventListener('input', function(){
+  document.getElementById('valBandHi').textContent=this.value;
+  update();
+});
+document.getElementById('slComp').addEventListener('input', function(){
+  document.getElementById('valComp').textContent = this.value;
+  renderCompStrip();
+});
+
+function stepK(d){
+  const sl=document.getElementById('slK');
+  sl.value=Math.max(1,Math.min(1024,parseInt(sl.value)+d));
+  document.getElementById('valK').textContent=sl.value;
+  update();
+}
+
+function stepComp(d){
+  const sl=document.getElementById('slComp');
+  sl.value=Math.max(1,Math.min(1021,parseInt(sl.value)+d));
+  document.getElementById('valComp').textContent=sl.value;
+  renderCompStrip();
+}
+
+// Keyboard shortcuts: arrow keys when focused on sliders
+document.addEventListener('keydown', function(e){
+  const active=document.activeElement;
+  if(active&&active.id==='slK'){
+    if(e.key==='ArrowLeft'||e.key==='ArrowDown') stepK(-1);
+    if(e.key==='ArrowRight'||e.key==='ArrowUp') stepK(1);
+  }
+});
+
+// ---- Freehand drawing ----
+const DC=160;
+const drawCv=document.getElementById('drawCanvas');
+const drawCtx=drawCv.getContext('2d');
+let isDrawing=false,lastX=0,lastY=0;
+
+function initDrawCanvas(){
+  drawCtx.fillStyle='#000';drawCtx.fillRect(0,0,DC,DC);
+}
+
+function getPos(e){
+  const rect=drawCv.getBoundingClientRect();
+  const sx=DC/rect.width,sy=DC/rect.height;
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  return [(cx-rect.left)*sx,(cy-rect.top)*sy];
+}
+
+function penDown(e){
+  e.preventDefault();isDrawing=true;
+  [lastX,lastY]=getPos(e);
+  const ps=parseInt(document.getElementById('penSize').value);
+  drawCtx.beginPath();drawCtx.arc(lastX,lastY,ps/2,0,Math.PI*2);drawCtx.fillStyle='#fff';drawCtx.fill();
+}
+function penMove(e){
+  if(!isDrawing)return;e.preventDefault();
+  const [cx,cy]=getPos(e);
+  const ps=parseInt(document.getElementById('penSize').value);
+  drawCtx.beginPath();drawCtx.moveTo(lastX,lastY);drawCtx.lineTo(cx,cy);
+  drawCtx.strokeStyle='#fff';drawCtx.lineWidth=ps;drawCtx.lineCap='round';drawCtx.stroke();
+  [lastX,lastY]=[cx,cy];
+}
+function penUp(){isDrawing=false;}
+
+drawCv.addEventListener('mousedown',penDown);
+drawCv.addEventListener('mousemove',penMove);
+drawCv.addEventListener('mouseup',penUp);
+drawCv.addEventListener('mouseleave',penUp);
+drawCv.addEventListener('touchstart',penDown,{passive:false});
+drawCv.addEventListener('touchmove',penMove,{passive:false});
+drawCv.addEventListener('touchend',penUp);
+
+document.getElementById('penSize').addEventListener('input',function(){
+  document.getElementById('penSizeVal').textContent=this.value;
+});
+
+function applyDrawing(){
+  const off=document.createElement('canvas');
+  off.width=N;off.height=N;
+  const ctx2=off.getContext('2d');
+  ctx2.drawImage(drawCv,0,0,N,N);
+  const id=ctx2.getImageData(0,0,N,N);
+  const img=new Float32Array(N*N);
+  for(let i=0;i<N*N;i++) img[i]=id.data[i*4];
+  processImage(img);
+}
+
+function clearDrawing(){initDrawCanvas();}
+
+initDrawCanvas();
+init();
+</script>
+</body>
+</html>
